@@ -5,14 +5,13 @@ compromises on Linux and BSD-based appliances and systems.
 
 This script is designed to replicate the logic of a specific YARA rule on
 systems where YARA is not available or practical to run. To learn more about the
-BRICKSTORM campaign and the UNC5221 threat actor, please read our full blog
+BRICKSTORM campaign, UNC5221, and closely related suspected China-nexus threat clusters, please read our full blog
 post:
 https://cloud.google.com/blog/topics/threat-intelligence/brickstorm-espionage-campaign
 
 In summary, the utility will:
 
-- Do a best-effort job at identifying files that match a known BRICKSTORM
-  signature.
+- Do a best-effort job at identifying files that match a known BRICKSTORM signature.
 - Scan specified files or recursively scan entire directories.
 
 It will not:
@@ -36,10 +35,8 @@ by checking for three conditions in a given file. A file is only flagged as a
 
 1. **ELF File Header**: Checks that the file is a valid ELF binary.
 1. **Required Strings**: Greps the binary for a set of required ASCII and wide
-  (UTF-16LE) strings, including `regex, mime, decompress, MIMEHeader,
-  ResolveReference`, and a specific large number.
-1. **Hex Pattern**: Performs a hex dump (`xxd`) and searches for a specific
-  25-byte hex pattern associated with the malware.
+  (UTF-16LE) strings, including `regex, mime, decompress, MIMEHeader, ResolveReference`, and a specific large number.
+1. **Hex Pattern**: Performs a hex dump (`xxd`) and searches for a specific 25-byte hex pattern associated with the malware.
 
 ## Details
 
@@ -105,8 +102,7 @@ utilities like `grep, xxd, head, sed`, and `find` to perform its checks.
 
 ### Further Reading
 
-For additional information from Mandiant regarding BRICKSTORM and in-the-wild
+For additional information from Mandiant and Google Threat Intelligence Group (GTIG) regarding BRICKSTORM and in-the-wild
 exploitation, please see:
 
-- https://cloud.google.com/blog/topics/threat-intelligence/brickstorm-espionage-campaign
-  - published on September 24, 2025
+- https://cloud.google.com/blog/topics/threat-intelligence/brickstorm-espionage-campaign - Published on September 24, 2025
