@@ -75,7 +75,7 @@ all files within the specified directory. BRICKSTORM has been deployed to a vari
 **note:** This script will traverse all mounted filesystems. If you are running this script on a device witi large datastore volumes, take care to specify paths that exclude them. 
 
 ```
-$ ./find_brickstorm.sh / > "/tmp/results-vmware-$(date +%F).txt"
+./find_brickstorm.sh / > "/tmp/results-vmware-$(date +%F).txt"
 ```
 
 ### Interpreting Results
