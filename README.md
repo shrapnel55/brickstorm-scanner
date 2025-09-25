@@ -67,7 +67,7 @@ run with execute permissions.
 
 **1. Make the script executable**:
 ```
-chmod +x ./brickstorm_scanner.sh
+chmod +x ./find_brickstorm.sh
 ```
 
 **2. Scan an entire directory recursively**: The script will use `find` to scan
@@ -75,7 +75,7 @@ all files within the specified directory. BRICKSTORM has been deployed to a vari
 **note:** This script will traverse all mounted filesystems. If you are running this script on a device witi large datastore volumes, take care to specify paths that exclude them. 
 
 ```
-$ ./brickstorm_scanner.sh / > "/tmp/results-vmware-$(date +%F).txt"
+$ ./find_brickstorm.sh / > "/tmp/results-vmware-$(date +%F).txt"
 ```
 
 ### Interpreting Results
