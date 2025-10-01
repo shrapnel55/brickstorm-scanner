@@ -38,7 +38,7 @@ find -L "$@" -type f -size -10000k \
         if ! grep -iaq "decompress" "$file"; then exit 0; fi
         if ! grep -iaq "MIMEHeader" "$file"; then exit 0; fi
         if ! grep -iaq "ResolveReference" "$file"; then exit 0; fi
-        if ! grep -iFq "$long_num" "$file"; then exit 0; fi
+        if ! grep -iaq "$long_num" "$file"; then exit 0; fi
 
         # Hex check using awk for portability.
         if ! hexdump -v -e "/1 \"%02x\"" "$file" 2>/dev/null | awk -v pat="$hex_pattern" "BEGIN{r=1} \$0 ~ pat {r=0; exit} END{exit r}"; then
