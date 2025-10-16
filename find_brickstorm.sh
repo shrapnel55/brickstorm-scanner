@@ -30,11 +30,11 @@
 # Detect OS to set the correct flags for `find`
 if [ "$(uname -s)" = "Linux" ]; then
     # GNU/Linux `find`
-    FIND_OPTS="-L"                         # -L to follow links
+    FIND_OPTS="-P"                         # -P to never follow symbolic links (avoids filesystem loops)
     REGEX_EXPR="-regextype posix-extended" # Use -regextype as an expression
 else
     # Assume BSD `find` (like on macOS/Darwin)
-    FIND_OPTS="-LE"        # -L to follow links, -E to enable extended regex
+    FIND_OPTS="-PE"        # -P to never follow symbolic links, -E to enable extended regex
     REGEX_EXPR=""          # No separate expression is needed
 fi
 # --- END: OS-specific `find` compatibility ---
@@ -57,6 +57,128 @@ long_num="1157920892103562487626974469494075735299969552241357603424222590610685
 build_wide_pattern() {
     # sed: for each character (.), replace it with itself (&) followed by \x00
     echo -n "$1" | sed 's/./&\\x00/g'
+}
+
+# Function to count files that will be processed
+count_files() {
+    local target="$1"
+    local count=0
+    
+    if [ -d "$target" ]; then
+        # Count files in directory using the same find command as processing
+        count=$(find $FIND_OPTS "$target" $REGEX_EXPR -type f -size -10M \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) 2>/dev/null | wc -l)
+    elif [ -f "$target" ]; then
+        # Single file
+        count=1
+    fi
+    
+    echo "$count"
+}
+
+# Function to count files with directory-level progress
+count_files_with_progress() {
+    local target="$1"
+    local total_count=0
+    
+    if [ -d "$target" ]; then
+        # Phase 1: Directory Discovery
+        # First, check if there are any 2nd level directories
+        local second_level_dirs=$(find $FIND_OPTS "$target" -maxdepth 2 -mindepth 2 -type d \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) 2>/dev/null)
+        local second_level_count=$(echo "$second_level_dirs" | wc -l)
+        
+        local subdirs=""
+        local total_dirs=0
+        
+        if [ "$second_level_count" -gt 0 ]; then
+            # Use 2nd level directories for progress
+            subdirs="$second_level_dirs"
+            total_dirs=$second_level_count
+        else
+            # No 2nd level directories, use 1st level directories
+            subdirs=$(find $FIND_OPTS "$target" -maxdepth 1 -type d \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) 2>/dev/null | tail -n +2)
+            total_dirs=$(echo "$subdirs" | wc -l)
+        fi
+        
+        # Always count files in the target directory itself first
+        local root_count=$(find $FIND_OPTS "$target" -maxdepth 2 $REGEX_EXPR -type f -size -10M \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) 2>/dev/null | wc -l)
+        total_count=$root_count
+        
+        if [ "$total_dirs" -eq 0 ]; then
+            # No subdirectories, we're done
+            :
+        else
+            # Phase 2: Chunked Processing
+            local current_dir=0
+            for dir in $subdirs; do
+                local count=$(find $FIND_OPTS "$dir" $REGEX_EXPR -type f -size -10M \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) 2>/dev/null | wc -l)
+                total_count=$((total_count + count))
+                current_dir=$((current_dir + 1))
+                show_progress "$current_dir" "$total_dirs" "Scanning directories" "$dir" >&2
+            done
+        fi
+    elif [ -f "$target" ]; then
+        # Single file
+        total_count=1
+    fi
+    
+    echo "$total_count"
+}
+
+# Function to show progress
+show_progress() {
+    local current="$1"
+    local total="$2"
+    local phase="$3"
+    local dir_name="$4"  # Optional directory name
+    
+    if [ "$total" -eq 0 ]; then
+        return
+    fi
+    
+    local percentage=$((current * 100 / total))
+    local bar_length=50
+    local filled_length=$((current * bar_length / total))
+    
+    # Create progress bar
+    local bar=""
+    local i=0
+    while [ $i -lt $bar_length ]; do
+        if [ $i -lt $filled_length ]; then
+            bar="${bar}█"
+        else
+            bar="${bar}░"
+        fi
+        i=$((i + 1))
+    done
+    
+    # Print progress with carriage return to overwrite previous line
+    if [ "$phase" = "Scanning directories" ]; then
+        if [ -n "$dir_name" ]; then
+            # Normalize directory name length (truncate or pad to 30 characters)
+            local max_dir_len=30
+            local normalized_dir=""
+            if [ ${#dir_name} -gt $max_dir_len ]; then
+                # Truncate long paths and add "..."
+                normalized_dir="${dir_name:0:$((max_dir_len-3))}..."
+            else
+                # Pad short paths with spaces
+                normalized_dir=$(printf "%-${max_dir_len}s" "$dir_name")
+            fi
+            printf "\r%s [%s] %d%% (%d/%d directories) - %s" "$phase" "$bar" "$percentage" "$current" "$total" "$normalized_dir"
+        else
+            printf "\r%s [%s] %d%% (%d/%d directories)" "$phase" "$bar" "$percentage" "$current" "$total"
+        fi
+    else
+        printf "\r%s [%s] %d%% (%d/%d files)" "$phase" "$bar" "$percentage" "$current" "$total"
+    fi
+    
+    # Force output flush
+    printf ""
+    
+    # If we're done, add a newline
+    if [ "$current" -eq "$total" ]; then
+        echo
+    fi
 }
 
 # Function to check a single file
@@ -138,19 +260,89 @@ fi
 # Export the function and variables so `find -exec` can use them
 export -f check_file
 export -f build_wide_pattern
+export -f show_progress
+export -f count_files_with_progress
 export long_num
 export hex_pattern
 
-# Loop over all provided arguments
+# Record start time
+start_time=$(date +%s)
+start_timestamp=$(date)
+
+# Count total files first with progress
+total_files=0
+echo "Scan started at: $start_timestamp"
+echo "Counting files to scan..."
+for target in "$@"; do
+    if [ -d "$target" ] || [ -f "$target" ]; then
+        # Run counting function - progress goes to stderr, count to stdout
+        count=$(count_files_with_progress "$target")
+        total_files=$((total_files + count))
+    fi
+done
+
+if [ "$total_files" -eq 0 ]; then
+    echo "No files to scan."
+    exit 0
+fi
+
+echo "Found $total_files files to scan."
+echo
+
+# Process files with progress tracking
+processed_files=0
+progress_file=$(mktemp)
+
+# Create a function that processes files and tracks progress
+process_with_progress() {
+    local file="$1"
+    check_file "$file"
+    # Increment counter in the progress file
+    echo "1" >> "$progress_file"
+    # Read current count and show progress
+    local current=$(wc -l < "$progress_file" 2>/dev/null || echo "0")
+    show_progress "$current" "$total_files" "Processing files"
+}
+
+# Export the progress function and variables
+export -f process_with_progress
+export total_files progress_file
+
 for target in "$@"; do
     if [ -d "$target" ]; then
         # If it's a directory, find all regular files and check them
         # Use the OS-specific flags from the top of the script
-        find $FIND_OPTS "$target" $REGEX_EXPR -type f -size -10M \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) -exec bash -c 'check_file "$0"' {} \; 2>/dev/null
+        find $FIND_OPTS "$target" $REGEX_EXPR -type f -size -10M \( -not -path "/proc/*" -and -not -regex "/tmp/[0-9]{10}/.*" -and -not -regex "/var(/crash)?/nsproflog/newproflog.*" -and -not -regex "/var(/crash)?/log/notice.log" \) -exec bash -c 'process_with_progress "$0"' {} \; 2>/dev/null
     elif [ -f "$target" ]; then
         # If it's a file, check it directly
-        check_file "$target"
+        process_with_progress "$target"
     else
         echo "Warning: '$target' is not a valid file or directory. Skipping." >&2
     fi
 done
+
+# Clean up progress file
+rm -f "$progress_file"
+
+# Record end time and calculate duration
+end_time=$(date +%s)
+end_timestamp=$(date)
+duration=$((end_time - start_time))
+
+# Format duration into human-readable format
+if [ $duration -lt 60 ]; then
+    duration_str="${duration}s"
+elif [ $duration -lt 3600 ]; then
+    minutes=$((duration / 60))
+    seconds=$((duration % 60))
+    duration_str="${minutes}m ${seconds}s"
+else
+    hours=$((duration / 3600))
+    minutes=$(((duration % 3600) / 60))
+    seconds=$((duration % 60))
+    duration_str="${hours}h ${minutes}m ${seconds}s"
+fi
+
+echo
+echo "Scan completed at: $end_timestamp"
+echo "Total scan time: $duration_str"
