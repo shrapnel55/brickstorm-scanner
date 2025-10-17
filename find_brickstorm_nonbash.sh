@@ -18,11 +18,11 @@
 # Detect OS to set the correct flags for `find`
 if [ "$(uname -s)" = "Linux" ]; then
     # GNU/Linux `find`
-    FIND_OPTS="-L"
+    FIND_OPTS="-P"
     REGEX_EXPR="-regextype posix-extended"
 else
     # Assume BSD `find` (like on macOS/Darwin)
-    FIND_OPTS="-LE"
+    FIND_OPTS="-PE"
     REGEX_EXPR=""
 fi
 # --- END: OS-specific `find` compatibility ---
