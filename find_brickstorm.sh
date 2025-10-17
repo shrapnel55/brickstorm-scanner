@@ -39,6 +39,15 @@ else
 fi
 # --- END: OS-specific `find` compatibility ---
 
+# --- START: Timeout compatibility ---
+# Check if GNU `timeout` command is available
+if command -v timeout &>/dev/null; then
+    TIMEOUT_CMD="timeout 1s"
+else
+    TIMEOUT_CMD="" # No timeout command, check will run without a timeout
+fi
+# --- END: Timeout compatibility ---
+
 # --- YARA Rule Definitions ---
 
 # This regex corresponds to the hex string $str1.
@@ -185,8 +194,16 @@ show_progress() {
 check_file() {
     local file="$1"
     
-    # Ensure it's a file we can read
+    # Ensure it's a file we can read (metadata check)
     if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+        return
+    fi
+
+    # --- NEW CHECK: Attempt a timed read to detect locked files ---
+    # $TIMEOUT_CMD will be "timeout 1s" if available, or empty otherwise.
+    # This attempts to read one byte. If it fails (e.g., timeout), we skip.
+    if ! $TIMEOUT_CMD head -c 1 "$file" &>/dev/null; then
+        # File is locked, timed out, or unreadable. Skip.
         return
     fi
 
@@ -308,6 +325,7 @@ export -f count_files_with_progress
 export long_num
 export hex_pattern
 export LOG_FILE
+export TIMEOUT_CMD
 
 # Record start time
 start_time=$(date +%s)
@@ -390,3 +408,4 @@ fi
 echo
 echo "Scan completed at: $end_timestamp"
 echo "Total scan time: $duration_str"
+
