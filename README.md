@@ -57,7 +57,7 @@ purpose.
 
 ## Usage
 
-You can download the standalone Bash script (`brickstorm_scanner.sh`) directly
+You can download the standalone Bash script (`find_brickstorm.sh`) directly
 from this repository.
 
 The IoC Scanner can be run directly on a Linux or BSD-based appliance or system. The
@@ -75,7 +75,7 @@ all files within the specified directory. BRICKSTORM has been deployed to a vari
 **note:** This script will traverse all mounted filesystems. If you are running this script on a device with large datastore volumes, take care to specify paths that exclude them. 
 
 ```
-./find_brickstorm.sh / > "/tmp/results-vmware-$(date +%F).txt"
+./find_brickstorm.sh -o logfile.txt /directory/to/scan/
 ```
 
 ### Interpreting Results
