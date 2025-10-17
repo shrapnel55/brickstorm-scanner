@@ -243,18 +243,61 @@ check_file() {
     fi
 
     # --- All conditions met ---
-    echo "MATCH: $file"
-    echo "Found evidence of potential BRICKSTORM compromise."
-    echo "You should consider performing a forensic investigation of the system."
-    echo 
+    if [ -n "$LOG_FILE" ]; then
+        # If log file is set, tee output to both stdout and log file
+        {
+            echo "MATCH: $file"
+            echo "Found evidence of potential BRICKSTORM compromise."
+            echo "You should consider performing a forensic investigation of the system."
+            echo 
+        } | tee -a "$LOG_FILE"
+    else
+        # Otherwise, just echo to stdout
+        echo "MATCH: $file"
+        echo "Found evidence of potential BRICKSTORM compromise."
+        echo "You should consider performing a forensic investigation of the system."
+        echo 
+    fi
 }
 
 # --- Main script execution ---
 
+LOG_FILE=""
+
+# Parse command-line options
+while getopts ":o:" opt; do
+  case $opt in
+    o)
+      LOG_FILE="$OPTARG"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Shift processed options away
+shift $((OPTIND-1))
+
 if [ "$#" -eq 0 ]; then
-    echo "Usage: $0 <file_or_directory1> [file_or_directory2] ..."
+    echo "Usage: $0 [-o /path/to/logfile] <file_or_directory1> [file_or_directory2] ..."
     echo "Checks files for strings and byte sequences present in the BRICKSTORM backdoor."
     exit 1
+fi
+
+# Check if log file is writable
+if [ -n "$LOG_FILE" ]; then
+    touch "$LOG_FILE" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "Error: Cannot write to log file: $LOG_FILE" >&2
+        exit 1
+    fi
+    echo "Logging hits to: $LOG_FILE"
 fi
 
 # Export the function and variables so `find -exec` can use them
@@ -264,6 +307,7 @@ export -f show_progress
 export -f count_files_with_progress
 export long_num
 export hex_pattern
+export LOG_FILE
 
 # Record start time
 start_time=$(date +%s)
