@@ -256,7 +256,6 @@ export TIMEOUT_CMD
 
 # Record start time
 start_time=$(date +%s)
-start_timestamp=$(date)
 
 # --- REFACTORED File Discovery and Processing ---
 
