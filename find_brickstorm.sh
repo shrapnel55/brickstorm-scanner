@@ -74,6 +74,7 @@ hex_pattern="488b05........48890424e8........48b8................48890424(..){0,
 long_num="115792089210356248762697446949407573529996955224135760342422259061068512044369115792089210356248762697446949407573530086143415290314195533631308867097853951"
 # --- End of Definitions ---
 
+foundHits=false
 
 # Function to dynamically create a UTF-16LE (wide) regex pattern
 # Usage: build_wide_pattern "text" -> "t\x00e\x00x\x00t\x00"
@@ -187,6 +188,7 @@ check_file() {
     fi
 
     # --- All conditions met ---
+    foundHits=true
     if [ -n "$LOG_FILE" ]; then
         # If log file is set, tee output to both stdout and log file
         {
@@ -218,7 +220,7 @@ while getopts ":o:" opt; do
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
-      exit 1
+    exit 1
       ;;
     :)
       echo "Option -$OPTARG requires an argument." >&2
@@ -253,6 +255,7 @@ export long_num
 export hex_pattern
 export LOG_FILE
 export TIMEOUT_CMD
+export foundHits
 
 # Record start time
 start_time=$(date +%s)
@@ -285,6 +288,9 @@ total_files=$(echo "$total_files" | tr -d ' ')
 
 if [ "$total_files" -eq 0 ]; then
     echo "No files to scan after applying exclusions."
+    if [ -n "$LOG_FILE" ]; then
+        echo "No files to scan after applying exclusions." >> "$LOG_FILE"
+    fi
     exit 0
 fi
 
@@ -321,7 +327,17 @@ else
     duration_str="${hours}h ${minutes}m ${seconds}s"
 fi
 
+if [ "$foundHits" = false ]; then
+    local_message="Scan complete. No BRICKSTORM malware signatures found."
+    if [ -n "$LOG_FILE" ]; then
+        # Log to both stdout and file
+        echo "$local_message" | tee -a "$LOG_FILE"
+    else
+        # Log to stdout only
+        echo "$local_message"
+    fi
+fi
+
 echo
 echo "Scan completed at: $end_timestamp"
 echo "Total scan time: $duration_str"
-
