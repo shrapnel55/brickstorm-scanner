@@ -138,7 +138,11 @@ check_file() {
     # --- Condition 1: Check ELF Header ---
     # uint16(0) == 0x457F checks for the first two bytes being 0x7F 0x45
     # (little-endian), which is the start of an ELF file magic number.
-    file_header=$(head -c 2 "$file" 2>/dev/null | xxd -p)
+    if command -v xxd >/dev/null 2>&1; then
+        file_header=$(xxd -l 2 -p "$file" 2>/dev/null)
+    else
+        file_header=$(hexdump -n 2 -v -e '/1 "%02x"' "$file" 2>/dev/null)
+    fi
     if [ "$file_header" != "7f45" ]; then
         # Not an ELF file, so it cannot match.
         return
@@ -183,8 +187,14 @@ check_file() {
     # This is the most expensive check. We hex-dump the entire file,
     # remove newlines, and grep the resulting single line of hex.
     # We use grep -Pq for Perl-compatible regex to support (..){0,5}
-    if ! xxd -p "$file" | tr -d '\n' | grep -Pq "$hex_pattern"; then
-        return
+    if command -v xxd >/dev/null 2>&1; then
+        if ! xxd -p "$file" 2>/dev/null | tr -d '\n' | grep -Pq "$hex_pattern"; then
+            return
+        fi
+    else
+        if ! hexdump -v -e '/1 "%02x"' "$file" 2>/dev/null | grep -Pq "$hex_pattern"; then
+            return
+        fi
     fi
 
     # --- All conditions met ---
